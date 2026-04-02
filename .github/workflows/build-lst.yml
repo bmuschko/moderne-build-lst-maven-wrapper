@@ -1,0 +1,42 @@
+name: Build LST
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-lst:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build project with Maven Wrapper
+        run: ./mvnw --batch-mode verify
+
+      - name: Determine latest Moderne CLI version
+        id: moderne-version
+        run: |
+          VERSION=$(curl -s https://repo1.maven.org/maven2/io/moderne/moderne-cli/maven-metadata.xml \
+            | grep '<release>' \
+            | sed 's/.*<release>\(.*\)<\/release>.*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download Moderne CLI
+        run: |
+          curl -sSL -o moderne-cli.jar \
+            "https://repo1.maven.org/maven2/io/moderne/moderne-cli/${{ steps.moderne-version.outputs.version }}/moderne-cli-${{ steps.moderne-version.outputs.version }}.jar"
+
+      - name: Build LST
+        run: |
+          mod() { java -jar moderne-cli.jar "$@"; }
+          mod build .
