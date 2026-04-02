@@ -7,9 +7,25 @@ on:
     branches: [main]
 
 jobs:
-  build-lst:
+  resolve-cli-versions:
     runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.resolve.outputs.versions }}
+    steps:
+      - name: Resolve latest 3.x and 4.x Moderne CLI versions
+        id: resolve
+        run: |
+          METADATA=$(curl -s https://repo1.maven.org/maven2/io/moderne/moderne-cli/maven-metadata.xml)
+          LATEST_3X=$(echo "$METADATA" | grep '<version>3\.' | tail -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
+          LATEST_4X=$(echo "$METADATA" | grep '<version>4\.' | tail -1 | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
+          echo "versions=[\"$LATEST_3X\",\"$LATEST_4X\"]" >> "$GITHUB_OUTPUT"
 
+  build-lst:
+    needs: resolve-cli-versions
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cli-version: ${{ fromJson(needs.resolve-cli-versions.outputs.versions) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,18 +39,10 @@ jobs:
       - name: Build project with Maven Wrapper
         run: ./mvnw --batch-mode verify
 
-      - name: Determine latest Moderne CLI version
-        id: moderne-version
-        run: |
-          VERSION=$(curl -s https://repo1.maven.org/maven2/io/moderne/moderne-cli/maven-metadata.xml \
-            | grep '<release>' \
-            | sed 's/.*<release>\(.*\)<\/release>.*/\1/')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Download Moderne CLI
+      - name: Download Moderne CLI ${{ matrix.cli-version }}
         run: |
           curl -sSL -o moderne-cli.jar \
-            "https://repo1.maven.org/maven2/io/moderne/moderne-cli/${{ steps.moderne-version.outputs.version }}/moderne-cli-${{ steps.moderne-version.outputs.version }}.jar"
+            "https://repo1.maven.org/maven2/io/moderne/moderne-cli/${{ matrix.cli-version }}/moderne-cli-${{ matrix.cli-version }}.jar"
 
       - name: Build LST
         run: |
