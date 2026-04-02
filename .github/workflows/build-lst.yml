@@ -47,4 +47,4 @@ jobs:
       - name: Build LST
         run: |
           mod() { java -jar moderne-cli.jar "$@"; }
-          mod build .
+          mod build --no-download .
